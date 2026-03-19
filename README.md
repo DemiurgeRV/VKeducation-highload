@@ -183,7 +183,7 @@
 
 ### 5.1 Схема сущностей
 
-<img width="929" height="807" alt="изображение" src="https://github.com/user-attachments/assets/ecb391fc-b713-46c5-8aad-059b81c609e2" />
+<img width="932" height="809" alt="изображение" src="https://github.com/user-attachments/assets/0cfc2a36-6527-4bba-a180-55873840979c" />
 
 ### 5.2 Описание таблиц
 

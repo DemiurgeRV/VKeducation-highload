@@ -230,6 +230,98 @@
 | Redis (cache) | кеш карточек товаров | ~100 ГБ | высокая чтение |
 | CDN | изображения товаров | ~3.5 ПБ | очень высокая |
 
+## 6. Физическая схема БД
+
+<img width="903" height="810" alt="изображение" src="https://github.com/user-attachments/assets/5c3ed790-4c25-4e61-9a7c-db5d36cea830" />
+
+### 6.1 Выбор СУБД
+| Таблица | СУБД | Обоснование |
+| ----------------------- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| users | PostgreSQL | Критичные транзакционные данные (auth, уникальность email, консистентность). Нужны ACID и строгие ограничения. |
+| sellers | PostgreSQL | Связано с пользователями + важна консистентность рейтинга и обновлений. Умеренная нагрузка, подходит OLTP. |
+| products | PostgreSQL | Основная бизнес-таблица. Нужны фильтры, сортировки, транзакции |
+| product_images | Хранилище S3 | В БД только metadata. Сами изображения — в object storage (S3) |
+| categories | PostgreSQL | Маленькая справочная таблица. Редко меняется |
+| pickup_points | PostgreSQL | Мало данных, небольшая нагрузка |
+| orders | PostgreSQL | Строгая консистентность, транзакции |
+| order_items | PostgreSQL | Часть транзакции заказа. Должна быть в той же ACID-среде |
+| carts | Redis | Очень высокая нагрузка, частые изменения, не критична строгая персистентность. Redis даёт быстрый доступ и TTL |
+| cart_items | Redis | То же, что и с carts |
+| product_reviews | Cassandra | Огромные объёмы, append-only, чтение по product_id |
+| seller_reviews | Cassandra | Та же моджель, что и в product_reviews |
+| pickup_points_reviews | Cassandra | Аналогично другим отзывам |
+| seller_analytics | ClickHouse | Аналитика. Быстрые агрегации, OLAP-нагрузка |
+| user_sessions | Redis | Важна скорость, не критична строгая персистентность |
+
+### 6.2 Индексы
+| Таблица | Индекс | Почему |
+|---------|--------|--------|
+| users | id | Быстрый доступ |
+|  | email | Поиск |
+| user_sessions | id | Быстрый доступ |
+|  | (user_id, expires_at) | Получение активных сессий + очистка |
+| sellers | id | Основной доступ |
+|  | user_id | Связь с пользователем |
+|  | (rating DESC)  | Топ продавцы |
+|  | name | Поиск |
+| products | id | Основной доступ |
+|  | seller_id | Товары продавца |
+|  | (category_id, price) | Фильтр |
+|  | (category_id, rating) | Сортировка |
+|  | (category_id, created_at DESC) | Новинки |
+| product_images | id | Основной доступ |
+|  | product_id | Получение изображений |
+| categories | id | Основной доступ |
+|  | parent_id | Иерархия категорий |
+| pickup_points | id | Основной доступ |
+|  | city | Поиск |
+| orders | id | Основной доступ |
+|  | (user_id, created_at DESC) | История заказов |
+|  | status | Фильтр |
+|  | pickup_point_id | Фильтр |
+| order_items | `id | Основной доступ |
+|  | order_id | Состав заказа |
+| carts | id | Основной доступ |
+|  | user_id (UNIQUE) | 1 корзина на пользователя |
+| cart_items | id | Основной доступ |
+|  | cart_id | Получение корзины |
+| product_reviews | id | Основной доступ |
+|  | (product_id, created_at DESC) | Лента отзывов |
+|  | (product_id, rating) | Фильтр по рейтингу |
+|  | user_id | История пользователя |
+| seller_reviews | id | Основной доступ |
+|  | (seller_id, created_at DESC) | Лента |
+|  | (seller_id, rating) | Фильтр |
+|  | user_id | История |
+| pickup_points_reviews` | id | Основной доступ |
+|  | (pickup_points_id, created_at DESC) | Лента |
+|  | user_id | История |
+| seller_analytics | seller_id | Доступ |
+|  | updated_at | Актуальность |
+
+### 6.3 Шардирование
+| Таблица | Ключ шардирования | Обоснование |
+|---------|-------------------|-------------|
+| users | id (hash) | Равномерное распределение нагрузки |
+| products | seller_id (hash) | Основная таблица, много данных и запросов. Агрегация по продавцу |
+| product_images | product_id (hash) | Доступ через продукт |
+| orders | user_id |  |
+| order_items | order_id | Всегда читается вместе с заказом |
+| carts | user_id | 1 корзина = 1 пользователь |
+| cart_items | cart_id | Всегда вместе с корзиной |
+| product_reviews | product_id |  |
+| seller_reviews | seller_id |  |
+| pickup_points_reviews | pickup_points_id |  |
+
+### 6.4 Клиентские библиотеки / интеграции
+СУБД 	Примеры для Go
+|---------|-------------------|
+| PostgreSQL |	Библиотека pgx |
+| ClickHouse |	Библиотека clickhouse-go |
+| Redis |	Библиотека go-redis |
+| S3 |	Библиотека minio-go |
+| Cassandra | Библиотека gocql |
+
 
 ## Источники
 1. Официальный сайт Яндекс Маркета. https://market.yandex.ru/

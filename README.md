@@ -232,7 +232,7 @@
 
 ## 6. Физическая схема БД
 
-<img width="903" height="810" alt="изображение" src="https://github.com/user-attachments/assets/5c3ed790-4c25-4e61-9a7c-db5d36cea830" />
+<img width="892" height="810" alt="изображение" src="https://github.com/user-attachments/assets/c80d239f-3f13-4bd4-9bf5-8d7d82f9531e" />
 
 ### 6.1 Выбор СУБД
 | Таблица | СУБД | Обоснование |

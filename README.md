@@ -185,20 +185,20 @@
 
 ### 5.2 Описание таблиц
 
-| Таблица | Размер строки | Кол-во записей | Чтение (QPS) | Запись (QPS) | Консистентность | Ключ и распределение |
-|--------|--------------|----------------|--------------|--------------|-----------------|----------------------|
-| users | ~300 Б | ~75 млн | ~500 | ~50 | Strong | user_id, равномерное |
-| sellers | ~300 Б | ~140 тыс | ~100 | ~5 | Strong | seller_id, равномерное |
-| products | ~1 КБ | ~74 млн | ~4000 | ~100 | Eventual | product_id, hot keys (популярные товары) |
-| product_images | ~200 Б (мета) | ~371 млн | ~4500 (через CDN) | ~50 | Eventual | Объектное хранилище. Ключ — product_id. Нагрузка на чтение снимается Edge-серверами CDN |
-| categories | ~100 Б | ~10 тыс | ~200 | ~1 | Strong | category_id, равномерное |
-| product_category | ~16 Б | ~150 млн | ~1000 | ~50 | Eventual | product_id, равномерное |
-| carts | ~200 Б | ~7.5 млн | ~1000 | ~500 | Strong | user_id, равномерное |
-| cart_items | ~100 Б | ~20 млн | ~1000 | ~500 | Strong | cart_id, равномерное |
-| orders | ~300 Б | ~400 млн | ~100 | ~10 | Strong | user_id, умеренно равномерное |
-| order_items | ~150 Б | ~1 млрд | ~200 | ~20 | Strong | order_id, равномерное |
-| reviews | ~1 КБ | ~16 млн | ~2000 | ~1 | Eventual | product_id, hot keys (товары с большим количеством отзывов) |
-| seller_analytics | ~200 Б | ~80 тыс | ~100 | ~50 | Eventual | seller_id, равномерное |
+| Таблица | Размер строки | Кол-во записей | Чтение (QPS) | Запись (QPS) | Консистентность |
+|--------|--------------|----------------|--------------|--------------|-----------------|
+| users | ~300 Б | ~75 млн | ~500 | ~50 | Strong |
+| sellers | ~300 Б | ~140 тыс | ~100 | ~5 | Strong |
+| products | ~1 КБ | ~74 млн | ~4000 | ~100 | Eventual |
+| product_images | ~200 Б (мета) | ~371 млн | ~4500 (через CDN) | ~50 | Eventual |
+| categories | ~100 Б | ~10 тыс | ~200 | ~1 | Strong |
+| product_category | ~16 Б | ~150 млн | ~1000 | ~50 | Eventual |
+| carts | ~200 Б | ~7.5 млн | ~1000 | ~500 | Strong |
+| cart_items | ~100 Б | ~20 млн | ~1000 | ~500 | Strong |
+| orders | ~300 Б | ~400 млн | ~100 | ~10 | Strong |
+| order_items | ~150 Б | ~1 млрд | ~200 | ~20 | Strong |
+| reviews | ~1 КБ | ~16 млн | ~2000 | ~1 | Eventual |
+| seller_analytics | ~200 Б | ~80 тыс | ~100 | ~50 | Eventual |
 
 ### 5.3 Пояснения
 
@@ -232,26 +232,30 @@
 
 ## 6. Физическая схема БД
 
+<img width="809" height="797" alt="изображение" src="https://github.com/user-attachments/assets/6cb37dd8-6664-4148-90e9-f596f6162307" />
+
 <img width="892" height="810" alt="изображение" src="https://github.com/user-attachments/assets/c80d239f-3f13-4bd4-9bf5-8d7d82f9531e" />
 
 ### 6.1 Выбор СУБД
-| Таблица | СУБД | Обоснование |
-| ----------------------- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| users | PostgreSQL | Критичные транзакционные данные (auth, уникальность email, консистентность). Нужны ACID и строгие ограничения. |
-| sellers | PostgreSQL | Связано с пользователями + важна консистентность рейтинга и обновлений. Умеренная нагрузка, подходит OLTP. |
-| products | PostgreSQL | Основная бизнес-таблица. Нужны фильтры, сортировки, транзакции |
-| product_images | Хранилище S3 | В БД только metadata. Сами изображения — в object storage (S3) |
-| categories | PostgreSQL | Маленькая справочная таблица. Редко меняется |
-| pickup_points | PostgreSQL | Мало данных, небольшая нагрузка |
-| orders | PostgreSQL | Строгая консистентность, транзакции |
-| order_items | PostgreSQL | Часть транзакции заказа. Должна быть в той же ACID-среде |
-| carts | Redis | Очень высокая нагрузка, частые изменения, не критична строгая персистентность. Redis даёт быстрый доступ и TTL |
-| cart_items | Redis | То же, что и с carts |
-| product_reviews | Cassandra | Огромные объёмы, append-only, чтение по product_id |
-| seller_reviews | Cassandra | Та же моджель, что и в product_reviews |
-| pickup_points_reviews | Cassandra | Аналогично другим отзывам |
-| seller_analytics | ClickHouse | Аналитика. Быстрые агрегации, OLAP-нагрузка |
-| user_sessions | Redis | Важна скорость, не критична строгая персистентность |
+| Таблица                 | СУБД         | Обоснование |
+|------------------------|-------------|-------------|
+| users                  | PostgreSQL  | Критичные транзакционные данные (auth, уникальность email, консистентность). |
+| sellers                | PostgreSQL  | Связано с пользователями, важна консистентность |
+| products               | PostgreSQL  | Основная бизнес-таблица. Фильтры, сортировки, транзакции |
+| product_stats          | Redis       | Агрегаты (рейтинг, заказы) |
+| product_images         | S3          | Хранение файлов |
+| categories             | PostgreSQL  | Справочник, редко меняется |
+| pickup_points          | PostgreSQL  | Небольшой объём данных |
+| pickup_point_stats     | Redis       | Агрегаты по пунктам выдачи |
+| orders                 | PostgreSQL  | Критичные транзакции |
+| order_items            | Cassandra   | Часть транзакции заказа |
+| carts                  | Redis       | Высокая нагрузка, временные данные, TTL |
+| cart_items             | Redis       | Быстрые операции, не критична персистентность |
+| product_reviews        | Cassandra   | Большие объёмы, append-only, доступ по product_id |
+| seller_reviews         | Cassandra   | Аналогично product_reviews |
+| pickup_point_reviews   | Cassandra   | Аналогично другим отзывам |
+| seller_analytics       | ClickHouse  | OLAP, агрегации, отчёты |
+| user_sessions          | Redis       | Быстрый доступ, TTL |
 
 ### 6.2 Индексы
 | Таблица | Индекс | Почему |

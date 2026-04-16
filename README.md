@@ -234,7 +234,7 @@
 
 <img width="809" height="797" alt="изображение" src="https://github.com/user-attachments/assets/6cb37dd8-6664-4148-90e9-f596f6162307" />
 
-<img width="892" height="810" alt="изображение" src="https://github.com/user-attachments/assets/c80d239f-3f13-4bd4-9bf5-8d7d82f9531e" />
+<img width="833" height="802" alt="изображение" src="https://github.com/user-attachments/assets/10823551-1b16-4ab6-949a-03536ac91901" />
 
 ### 6.1 Выбор СУБД
 | Таблица                 | СУБД         | Обоснование |
@@ -242,82 +242,76 @@
 | users                  | PostgreSQL  | Критичные транзакционные данные (auth, уникальность email, консистентность). |
 | sellers                | PostgreSQL  | Связано с пользователями, важна консистентность |
 | products               | PostgreSQL  | Основная бизнес-таблица. Фильтры, сортировки, транзакции |
-| product_stats          | Redis       | Агрегаты (рейтинг, заказы) |
+| product_stats          | PostgreSQL  | Агрегаты |
 | product_images         | S3          | Хранение файлов |
 | categories             | PostgreSQL  | Справочник, редко меняется |
 | pickup_points          | PostgreSQL  | Небольшой объём данных |
-| pickup_point_stats     | Redis       | Агрегаты по пунктам выдачи |
+| pickup_point_stats     | PostgreSQL  | Агрегаты по пунктам выдачи |
 | orders                 | PostgreSQL  | Критичные транзакции |
-| order_items            | Cassandra   | Часть транзакции заказа |
+| order_items            | PostgreSQL  | Часть транзакции заказа, строгая консистентность |
 | carts                  | Redis       | Высокая нагрузка, временные данные, TTL |
 | cart_items             | Redis       | Быстрые операции, не критична персистентность |
-| product_reviews        | Cassandra   | Большие объёмы, append-only, доступ по product_id |
-| seller_reviews         | Cassandra   | Аналогично product_reviews |
-| pickup_point_reviews   | Cassandra   | Аналогично другим отзывам |
+| product_reviews        | PostgreSQL  | Небольшая нагрузка (~16млн записей за 5 лет) |
+| seller_reviews         | PostgreSQL  | Аналогично product_reviews |
+| pickup_point_reviews   | PostgreSQL  | Аналогично другим отзывам |
 | seller_analytics       | ClickHouse  | OLAP, агрегации, отчёты |
 | user_sessions          | Redis       | Быстрый доступ, TTL |
 
 ### 6.2 Индексы
-| Таблица | Индекс | Почему |
-|---------|--------|--------|
-| users | id | Быстрый доступ |
-|  | email | Поиск |
-| user_sessions | id | Быстрый доступ |
-|  | (user_id, expires_at) | Получение активных сессий + очистка |
-| sellers | id | Основной доступ |
-|  | user_id | Связь с пользователем |
-|  | (rating DESC)  | Топ продавцы |
-|  | name | Поиск |
-| products | id | Основной доступ |
-|  | seller_id | Товары продавца |
-|  | (category_id, price) | Фильтр |
-|  | (category_id, rating) | Сортировка |
-|  | (category_id, created_at DESC) | Новинки |
-| product_images | id | Основной доступ |
-|  | product_id | Получение изображений |
-| categories | id | Основной доступ |
-|  | parent_id | Иерархия категорий |
-| pickup_points | id | Основной доступ |
-|  | city | Поиск |
-| orders | id | Основной доступ |
-|  | (user_id, created_at DESC) | История заказов |
-|  | status | Фильтр |
-|  | pickup_point_id | Фильтр |
-| order_items | `id | Основной доступ |
-|  | order_id | Состав заказа |
-| carts | id | Основной доступ |
-|  | user_id (UNIQUE) | 1 корзина на пользователя |
-| cart_items | id | Основной доступ |
-|  | cart_id | Получение корзины |
-| product_reviews | id | Основной доступ |
-|  | (product_id, created_at DESC) | Лента отзывов |
-|  | (product_id, rating) | Фильтр по рейтингу |
-|  | user_id | История пользователя |
-| seller_reviews | id | Основной доступ |
-|  | (seller_id, created_at DESC) | Лента |
-|  | (seller_id, rating) | Фильтр |
-|  | user_id | История |
-| pickup_points_reviews` | id | Основной доступ |
-|  | (pickup_points_id, created_at DESC) | Лента |
-|  | user_id | История |
-| seller_analytics | seller_id | Доступ |
-|  | updated_at | Актуальность |
+| Таблица                        | Индекс                    | Размер в RAM                            |
+| ------------------------------ | ------------------------- | --------------------------------------- |
+| users (75 млн)                 | id                        | `75M × 32B ≈ 2.4GB`             |
+|                                | email                     | `75M × 64B ≈ 4.8GB`             |
+| user_sessions (75 млн)*        | id                        | `75M × 32B ≈ 2.4GB`             |
+|                                | (user_id, expires_at)     | `75M × (8+8+16=32B) ≈ 2.4GB`    |
+| sellers (140k)                 | id                        | `140k × 32B ≈ 4.5MB`            |
+|                                | user_id                   | `140k × 32B ≈ 4.5MB`            |
+|                                | (rating)                  | `140k × 32B ≈ 4.5MB`            |
+|                                | name                      | `140k × 64B ≈ 9MB`             |
+| products (74 млн)              | id                        | `74M × 32B ≈ 2.3GB`             |
+|                                | seller_id                 | `74M × 32B ≈ 2.3GB`             |
+|                                | (category_id, price)      | `74M × (8+8+16=32B) ≈ 2.3GB`    |
+|                                | (category_id, rating)     | `74M × 32B ≈ 2.3GB`             |
+|                                | (category_id, created_at) | `74M × 32B ≈ 2.3GB`             |
+| product_images (371 млн)       | id                        | `371M × 32B ≈ 11.8GB`          |
+|                                | product_id                | `371M × 32B ≈ 11.8GB`          |
+| categories (10k)               | id                        | `10k × 32B ≈ 0.3MB`                     |
+|                                | parent_id                 | `10k × 32B ≈ 0.3MB`                     |
+| pickup_points (~100k)          | id                        | `100k × 32B ≈ 3MB`                      |
+|                                | city                      | `100k × 64B ≈ 6MB`                      |
+| orders (400 млн)               | id                        | `400M × 32B ≈ 12.8GB`          |
+|                                | (user_id, created_at)     | `400M × (8+8+16=32B) ≈ 12.8GB` |
+|                                | status                    | `400M × 24B ≈ 9.6GB`           |
+|                                | pickup_point_id           | `400M × 32B ≈ 12.8GB`          |
+| order_items (1 млрд)           | id                        | `1B × 32B ≈ 32GB`                       |
+|                                | order_id                  | `1B × 32B ≈ 32GB`                       |
+| carts (7.5 млн)                | id                        | `7.5M × 32B ≈ 240MB`                    |
+|                                | user_id                   | `7.5M × 32B ≈ 240MB`                    |
+| cart_items (20 млн)            | id                        | `20M × 32B ≈ 640MB`                     |
+|                                | cart_id                   | `20M × 32B ≈ 640MB`                     |
+| product_reviews (16 млн)       | id                        | `16M × 32B ≈ 512MB`                     |
+|                                | (product_id, created_at)  | `16M × 32B ≈ 512MB`                     |
+|                                | (product_id, rating)      | `16M × 32B ≈ 512MB`                     |
+|                                | user_id                   | `16M × 32B ≈ 512MB`                     |
+| seller_reviews (~16 млн)       | все                       | `≈ 4 × 16M × 32B ≈ 2GB`                 |
+| pickup_point_reviews (~16 млн) | все                       | `≈ 4 × 16M × 32B ≈ 2GB`                 |
+| seller_analytics (80k)         | seller_id                 | `80k × 32B ≈ 2.5MB`                     |
+|                                | updated_at                | `80k × 32B ≈ 2.5MB`                     |
 
-### 6.3 Шардирование
-| Таблица | Ключ шардирования | Обоснование |
-|---------|-------------------|-------------|
-| users | id (hash) | Равномерное распределение нагрузки |
-| products | seller_id (hash) | Основная таблица, много данных и запросов. Агрегация по продавцу |
-| product_images | product_id (hash) | Доступ через продукт |
-| orders | user_id |  |
-| order_items | order_id | Всегда читается вместе с заказом |
-| carts | user_id | 1 корзина = 1 пользователь |
-| cart_items | cart_id | Всегда вместе с корзиной |
-| product_reviews | product_id |  |
-| seller_reviews | seller_id |  |
-| pickup_points_reviews | pickup_points_id |  |
+### 6.4 Партиционирование
+| Таблица | Обоснование |
+|---------|-------------|
+| orders, order_items | 400 млн заказов. Позволяет эффективно управлять жизненным циклом данных и архивировать старые партиции |
 
-### 6.4 Клиентские библиотеки / интеграции
+### 6.5 Репликация
+| Таблица | Обоснование |
+|---------|-------------|
+| products | 4000 QPS на чтение |
+| product_images | 4500 QPS на чтение |
+| reviews | 2000 QPS на чтение | 
+| users | 500 QPS |
+
+### 6.6 Клиентские библиотеки / интеграции
 СУБД 	Примеры для Go
 |---------|-------------------|
 | PostgreSQL |	Библиотека pgx |
@@ -336,7 +330,6 @@
 | **React Native**               | Мобильные приложения        | Кроссплатформенность (iOS + Android), ускоряет разработку                                                           |
 | **PostgreSQL**                 | Основная OLTP БД            | ACID, сложные запросы, надёжность                                                                                   |
 | **Redis**                      | Кеш, сессии, корзины        | Очень быстрый in-memory доступ                                                                                      |
-| **Apache Cassandra**           | Хранение отзывов            | Высокая масштабируемость, write-heavy workload                                                                      |
 | **ClickHouse**                 | Аналитика                   | Быстрые агрегации, аналитика                                                                                        |
 | **S3 (Object Storage)**        | Хранение изображений        | Дешёвое и масштабируемое хранение                                                                                   |
 | **Nginx**                      | L7 балансировка             | Высокая производительность, гибкость маршрутизации                                                                  |

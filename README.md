@@ -232,9 +232,7 @@
 
 ## 6. Физическая схема БД
 
-<img width="809" height="797" alt="изображение" src="https://github.com/user-attachments/assets/6cb37dd8-6664-4148-90e9-f596f6162307" />
-
-<img width="833" height="802" alt="изображение" src="https://github.com/user-attachments/assets/10823551-1b16-4ab6-949a-03536ac91901" />
+<img width="828" height="800" alt="изображение" src="https://github.com/user-attachments/assets/c97575f2-bdcc-46ee-be2d-67a8f50c000a" />
 
 ### 6.1 Выбор СУБД
 | Таблица                 | СУБД         | Обоснование |
@@ -242,11 +240,9 @@
 | users                  | PostgreSQL  | Критичные транзакционные данные (auth, уникальность email, консистентность). |
 | sellers                | PostgreSQL  | Связано с пользователями, важна консистентность |
 | products               | PostgreSQL  | Основная бизнес-таблица. Фильтры, сортировки, транзакции |
-| product_stats          | PostgreSQL  | Агрегаты |
 | product_images         | S3          | Хранение файлов |
 | categories             | PostgreSQL  | Справочник, редко меняется |
 | pickup_points          | PostgreSQL  | Небольшой объём данных |
-| pickup_point_stats     | PostgreSQL  | Агрегаты по пунктам выдачи |
 | orders                 | PostgreSQL  | Критичные транзакции |
 | order_items            | PostgreSQL  | Часть транзакции заказа, строгая консистентность |
 | carts                  | Redis       | Высокая нагрузка, временные данные, TTL |
@@ -304,12 +300,12 @@
 | seller_analytics (80k)         | seller_id                 | `80k × 32B ≈ 2.5MB`                     |
 |                                | updated_at                | `80k × 32B ≈ 2.5MB`                     |
 
-### 6.4 Партиционирование
+### 6.3 Партиционирование
 | Таблица | Обоснование |
 |---------|-------------|
 | orders, order_items | 400 млн заказов. Позволяет эффективно управлять жизненным циклом данных и архивировать старые партиции |
 
-### 6.5 Репликация
+### 6.4 Репликация
 | Таблица | Обоснование |
 |---------|-------------|
 | products | 4000 QPS на чтение |
@@ -317,14 +313,13 @@
 | reviews | 2000 QPS на чтение | 
 | users | 500 QPS |
 
-### 6.6 Клиентские библиотеки / интеграции
+### 6.5 Клиентские библиотеки / интеграции
 СУБД 	Примеры для Go
 |---------|-------------------|
 | PostgreSQL |	Библиотека pgx |
 | ClickHouse |	Библиотека clickhouse-go |
 | Redis |	Библиотека go-redis |
 | S3 |	Библиотека minio-go |
-| Cassandra | Библиотека gocql |
 
 ## 8. Технологии
 

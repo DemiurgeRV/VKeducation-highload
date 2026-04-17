@@ -293,8 +293,14 @@
 |                                | (product_id, created_at)  | `16M × 32B ≈ 512MB`                     |
 |                                | (product_id, rating)      | `16M × 32B ≈ 512MB`                     |
 |                                | user_id                   | `16M × 32B ≈ 512MB`                     |
-| seller_reviews (~16 млн)       | все                       | `≈ 4 × 16M × 32B ≈ 2GB`                 |
-| pickup_point_reviews (~16 млн) | все                       | `≈ 4 × 16M × 32B ≈ 2GB`                 |
+| seller_reviews (~16 млн)       | id                        | `16M × 32B ≈ 512MB`                     |
+|                                | (seller_id, created_at)   | `16M × (8+8+16=32B) ≈ 512MB`            |
+|                                | (seller_id, rating)       | `16M × 32B ≈ 512MB`    |
+|                                | user_id                   | `16M × 32B ≈ 512MB`    |
+| pickup_point_reviews (~16 млн) | id                        | `16M × 32B ≈ 512MB`    |
+|                                | (pickup_point_id, created_at) | `16M × (8+8+16=32B) ≈ 512MB`    |
+|                                | (pickup_point_id, rating)     | `16M × 32B ≈ 512MB`    |
+|                                | user_id                       | `16M × 32B ≈ 512MB`    |
 | seller_analytics (80k)         | seller_id                 | `80k × 32B ≈ 2.5MB`                     |
 |                                | updated_at                | `80k × 32B ≈ 2.5MB`                     |
 

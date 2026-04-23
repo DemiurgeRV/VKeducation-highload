@@ -123,7 +123,7 @@
 
 | Домен | Назначение |
 |------|------------|
-| market.<img width="1012" height="1132" alt="Диаграмма без названия" src="https://github.com/user-attachments/assets/6450f63f-81f2-4c6f-ada9-7e0da4c29d46" />.ru | основной веб-интерфейс маркетплейса |
+| market.yandex.ru | основной веб-интерфейс маркетплейса |
 | api.market.yandex.ru | backend API для мобильных приложений и веб-клиента |
 | media.market.yandex.ru | доставка медиа |
 | seller.market.yandex.ru | интерфейс для продавцов |
